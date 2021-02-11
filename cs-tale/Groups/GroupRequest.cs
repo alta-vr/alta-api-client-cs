@@ -2,11 +2,13 @@
 {
 	public class GroupRequest
 	{
-		public Group Group { get; }
+		public GroupManager Manager { get; }
+		public GroupInfo Info { get; }
 
-		public GroupRequest(Group group, object data)
+		public GroupRequest(GroupManager manager, GroupInfo info)
 		{
-			Group = group;
+			Manager = manager;
+			Info = info;
 		}
 
 		public void Revoke()

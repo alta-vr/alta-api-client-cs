@@ -1,4 +1,5 @@
 ﻿using AltaClient.Core;
+using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -27,6 +28,21 @@ namespace AltaClient.Groups
 		public bool IsConsoleAutomatic { get; private set; }
 
 		public event GroupEventHandler Updated;
+
+		public Group(GroupManager manager, JObject data)
+		{
+			Manager = manager;
+
+			if (data.TryGetValue("group", out JToken group))
+			{
+				Info = group.ToObject<GroupInfo>();
+				Member = data.GetValue("member").ToObject<GroupMember>();
+			}
+			else
+			{
+				Info = data.ToObject<GroupInfo>();
+			}
+		}
 
 		public Group(GroupManager manager, GroupInfo info, GroupMember member = null)
 		{
@@ -91,7 +107,7 @@ namespace AltaClient.Groups
 			Updated?.Invoke(this);
 		}
 
-		public async Task AutomaticConsole(Action<Console> callback)
+		public async Task AutomaticConsole(Action<ServerConnection> callback)
 		{
 			if (IsConsoleAutomatic)
 			{
@@ -106,7 +122,7 @@ namespace AltaClient.Groups
 			//await Servers.Refresh(true);
 			//await Servers.RefreshStatus(true);
 
-			HashSet<Console> connections = new HashSet<Console>();
+			HashSet<ServerConnection> connections = new HashSet<ServerConnection>();
 
 			async void HandleStatus(Server server, ServerInfo oldInfo)
 			{
@@ -116,7 +132,7 @@ namespace AltaClient.Groups
 				{
 					try
 					{
-						Console result = await server.GetConsole();
+						ServerConnection result = await server.GetConsole();
 
 						if (connections.Add(result))
 						{

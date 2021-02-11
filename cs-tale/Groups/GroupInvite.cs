@@ -2,11 +2,13 @@
 {
 	public class GroupInvite
 	{
-		public Group Group { get; }
+		public GroupManager Manager { get; }
+		public GroupInfo Info { get; }
 
-		public GroupInvite(Group group, object data)
+		public GroupInvite(GroupManager manager, GroupInfo info)
 		{
-			Group = group;
+			Manager = manager;
+			Info = info;
 		}
 
 		public void Accept()

@@ -32,9 +32,13 @@ namespace AltaClient.Core
 		static Logger Logger { get; } = new Logger("ApiConnection");
 
 		public HttpClient ApiClient { get; private set; }
-
+		
 		public int UserId { get; private set; }
 
+		public string ClientId { get; private set; }
+
+		string accessToken;
+		
 		public async Task Login(Config config)
 		{
 			HttpClient client = new HttpClient();
@@ -67,39 +71,64 @@ namespace AltaClient.Core
 				throw new Exception(response.Error);
 			}
 
-			ApiClient = new HttpClient();
-			ApiClient.SetBearerToken(response.AccessToken);
-			ApiClient.DefaultRequestHeaders.Add("x-api-key", "2l6aQGoNes8EHb94qMhqQ5m2iaiOM9666oDTPORf");
-			ApiClient.DefaultRequestHeaders.Add("User-Agent", config.ClientId);
-
-			ApiClient.BaseAddress = new Uri(config.Endpoint ?? "https://967phuchye.execute-api.ap-southeast-2.amazonaws.com/test/api/");
+			accessToken = response.AccessToken;
 
 			JwtSecurityTokenHandler handler = new JwtSecurityTokenHandler();
 
-			JwtSecurityToken token = handler.ReadJwtToken(response.AccessToken);
+			JwtSecurityToken token = handler.ReadJwtToken(accessToken);
 
 			UserId = int.Parse(token.Claims.First(item => item.Type == "client_sub").Value);
+			ClientId = config.ClientId;
 
+			ApiClient = new HttpClient();
+
+			foreach (var pair in GetHeaders())
+			{
+				ApiClient.DefaultRequestHeaders.Add(pair.Item1, pair.Item2);
+			}
+
+			ApiClient.BaseAddress = new Uri(config.Endpoint ?? "https://967phuchye.execute-api.ap-southeast-2.amazonaws.com/test/api/");
+			
 			Logger.Success("User ID: " + UserId);
 			Logger.Success("Username: " + token.Claims.First(item => item.Type == "client_username").Value);
 		}
 
+		public IEnumerable<(string, string)> GetHeaders()
+		{
+			yield return ("Authorization", "Bearer " + accessToken);
+			yield return ("x-api-key", "2l6aQGoNes8EHb94qMhqQ5m2iaiOM9666oDTPORf");
+			yield return ("User-Agent", ClientId);
+		}
 
-		public async Task<JObject> Fetch(HttpMethod method, string path, object body = null)
+		public async Task<T> FetchAs<T>(HttpMethod method, string path, object body = null)
+		{
+			JToken result = await Fetch(method, path, body);
+
+			return result.ToObject<T>();
+		}
+
+		public async Task<JArray> FetchArray(HttpMethod method, string path, object body = null)
+		{
+			var result = await Fetch(method, path, body);
+
+			return (JArray)result;
+		}
+
+		public async Task<JToken> Fetch(HttpMethod method, string path, object body = null)
 		{
 			HttpResponseMessage message = await ApiClient.SendAsync(new HttpRequestMessage(method, path)
 			{
-				Content = body == null ? null : new StringContent(JsonConvert.SerializeObject(body))
+				Content = body == null ? null : new StringContent(JsonConvert.SerializeObject(body), Encoding.UTF8, "application/json")
 			});
 			
 			if (message.IsSuccessStatusCode)
 			{
-				return JObject.Parse(await message.Content.ReadAsStringAsync());
+				return JToken.Parse(await message.Content.ReadAsStringAsync());
 			}
 
 			throw new HttpError(method, path, message.StatusCode, message.ReasonPhrase, null);
 		}
-
+		
 		public async Task<int> ResolveUsernameOrId(string value)
 		{
 			if (int.TryParse(value, out int id))
@@ -107,9 +136,9 @@ namespace AltaClient.Core
 				return id;
 			}
 
-			JObject result = await Fetch(HttpMethod.Post, "users/search/username", new { username = value });
-
-			return result.GetValue("id").Value<int>();
+			JToken result = await Fetch(HttpMethod.Post, "users/search/username", new { username = value });
+			
+			return ((JObject)result).GetValue("id").Value<int>();
 		}
 	}
 }

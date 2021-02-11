@@ -1,5 +1,7 @@
 ﻿using AltaClient.Core;
+using Newtonsoft.Json.Linq;
 using System;
+using System.Net.Http;
 using System.Threading.Tasks;
 
 namespace AltaClient.Groups
@@ -18,18 +20,18 @@ namespace AltaClient.Groups
 		{
 			Api = subscriptions.Api;
 			Subscriptions = subscriptions;
-			//Groups = new LiveList<Group>("groups",
-			//	() => this.Api.Fetch("GET", "groups/joined"),
-			//	callback => this.Subscriptions.Subscribe("me-group-create", this.Api.userId, callback),
-			//	callback => this.Subscriptions.Subscribe("me-group-delete", this.Api.userId, callback),
-			//	null,
-			//	data => !!data.group ? data.group.id : data.id,
-			//	group => group.info.id,
- 		//		data => !!data.Group ? new Group(this, data.Group, data.Member) : new Group(this, data));
+			Groups = new LiveList<Group>("groups",
+				async () => await this.Api.Fetch(HttpMethod.Get, "groups/joined") as JArray,
+				callback => this.Subscriptions.Subscribe("me-group-create", this.Api.UserId, callback),
+				callback => this.Subscriptions.Subscribe("me-group-delete", this.Api.UserId, callback),
+				null,
+				data => data.SelectToken(data.TryGetValue("group", out JToken group)  ? "group.id" : "id").ToObject<int>(),
+				group => group.Info.Identifier,
+ 				data => new Group(this, data));
 
 			Groups.Delete += group => group.Dispose();
 
-			//Invites = new LiveList<GroupInvite>("invites", () => this.Api.fetch("GET", "groups/invites"), callback => this.Subscriptions.subscribe("me-group-invite-create", this.Api.userId, callback), callback => this.Subscriptions.subscribe("me-group-invite-delete", this.Api.userId, callback), undefined, data => data.id, invite => invite.info.id, data => new GroupInvite(this, data));
+			Invites = new LiveList<GroupInvite>("invites", () => this.Api.FetchArray(HttpMethod.Get, "groups/invites"), callback => this.Subscriptions.Subscribe("me-group-invite-create", this.Api.UserId, callback), callback => this.Subscriptions.Subscribe("me-group-invite-delete", this.Api.UserId, callback), null, data => data.SelectToken("id").ToObject<int>(), invite => invite.Info.Identifier, data => new GroupInvite(this, data.ToObject<GroupInfo>()));
 			//Requests = new LiveList<GroupRequest>("requests", () => this.Api.fetch("GET", "groups/requests"), callback => this.Subscriptions.subscribe("me-group-request-create", this.Api.userId, callback), callback => this.Subscriptions.subscribe("me-group-request-delete", this.Api.userId, callback), undefined, data => data.id, invite => invite.info.id, data => new GroupRequest(this, data));
 		}
 
@@ -37,7 +39,7 @@ namespace AltaClient.Groups
 		{
 			try
 			{
-				//await Invites.Refresh(subscribe);
+				await Invites.Refresh(subscribe);
 
 				if (subscribe)
 				{
@@ -57,7 +59,7 @@ namespace AltaClient.Groups
 			}
 		}
 
-		public async Task AutomaticConsole(Action<Console> callback)
+		public async Task AutomaticConsole(Action<ServerConnection> callback)
 		{
 			Logger.Info("Enabling automatic console for all groups");
 

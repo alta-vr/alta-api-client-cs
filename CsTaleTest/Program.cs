@@ -3,6 +3,7 @@ using System;
 using System.IO;
 using Newtonsoft.Json;
 using System.Threading.Tasks;
+using AltaClient.Groups;
 
 namespace CsTaleTest
 {
@@ -18,17 +19,15 @@ namespace CsTaleTest
 			}
 			catch (Exception e)
 			{
-				Console.WriteLine(e.Message);
-				Console.WriteLine(e.InnerException?.Message);
+				Logger.Error(e.Message);
+				Logger.Error(e.InnerException?.Message);
 			}
 
-			Console.ReadLine();
+			System.Console.ReadLine();
 		}
 
 		static async Task Run()
 		{ 
-			Console.WriteLine("Hello World!");
-
 			Config config;
 
 			try
@@ -44,16 +43,27 @@ namespace CsTaleTest
 				Logger.Fatal("Error parsing config.json");
 				Logger.Fatal(e);
 
-				Console.ReadLine();
+				System.Console.ReadLine();
 
 				return;
 			}
 
 			ApiConnection connection = new ApiConnection();
-
-
-			Logger.Info("Logging in");
+			
 			await connection.Login(config);
+
+			SubscriptionManager subscriptions = new SubscriptionManager(connection);
+
+			await subscriptions.Initialize();
+
+			GroupManager groupManager = new GroupManager(subscriptions);
+
+			await groupManager.AcceptAllInvites(true);
+
+			foreach (Group group in await groupManager.Groups.Refresh(true))
+			{
+				Logger.Info(group.Info.Name);
+			}
 		}
 	}
 }
